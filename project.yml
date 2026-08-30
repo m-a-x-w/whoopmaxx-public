@@ -1,0 +1,188 @@
+# whoopmaxx — xcodegen project definition.
+# `xcodegen generate` regenerates whoopmaxx.xcodeproj and the Info.plist; NEVER hand-edit
+# the generated files — all plist/version keys live HERE (pattern carried from #416).
+name: whoopmaxx
+options:
+  bundleIdPrefix: com.whoopmaxx
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  developmentLanguage: en
+settings:
+  base:
+    # GLOBAL version keys — the app AND its widget extension inherit the SAME MARKETING_VERSION /
+    # CURRENT_PROJECT_VERSION, so iOS never warns "extension version must match parent app" (#416).
+    MARKETING_VERSION: "1.9.0"
+    CURRENT_PROJECT_VERSION: "46"
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    # Single source of truth for the App Group shared by the app + widget/Live-Activity extension.
+    # Referenced as $(APP_GROUP_ID) by BOTH targets' entitlements and Info.plist, and read at runtime via
+    # the AppGroupIdentifier Info.plist key (WidgetSnapshot.suiteName) so the value is never hard-coded in
+    # Swift. AltStore/SideStore rewrites it consistently across both targets at install. Change it in this
+    # one place when building under your own Apple ID.
+    APP_GROUP_ID: group.com.whoopmaxx.app
+packages:
+  StrapProtocol:
+    path: Packages/StrapProtocol
+  StrapStore:
+    path: Packages/StrapStore
+  StrapAnalytics:
+    path: Packages/StrapAnalytics
+  # Unzips / writes .wmbak backup containers. Same exact pin as the original so the
+  # vendored StrapStore's expectations and the importer agree.
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation.git
+    exactVersion: 0.9.19
+
+targets:
+  whoopmaxx:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: App
+      - path: Core
+      # Three-way split, recursive, compiled into BOTH the app and the widget target:
+      # Contract/ (WidgetSnapshot, LiveActivityAttributes, the App-Group appearance mirror),
+      # Design/ (Tokens/Type/Motion/ScoreColumn), Widget/ (the rendered widget surfaces).
+      - path: Shared
+    info:
+      path: App/Resources/Info.plist
+      properties:
+        CFBundleName: whoopmaxx
+        CFBundleDisplayName: whoopmaxx
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Surfaces APP_GROUP_ID to runtime (WidgetSnapshot.suiteName) so the App Group id isn't
+        # hard-coded in Swift; stays in sync with the application-groups entitlement (both $(APP_GROUP_ID)).
+        AppGroupIdentifier: "$(APP_GROUP_ID)"
+        LSApplicationCategoryType: public.app-category.healthcare-fitness
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIBackgroundModes:
+          # Keep the strap link alive while backgrounded (live HR, backfill, alarm re-arm).
+          - bluetooth-central
+        # REQUIRED for ActivityKit: without it `areActivitiesEnabled` is always false, no per-app Live
+        # Activities toggle appears in Settings, and the entire live-HR Lock-Screen / Dynamic-Island
+        # feature is dead + un-enableable (the original declares this too).
+        NSSupportsLiveActivities: true
+        NSBluetoothAlwaysUsageDescription: >-
+          whoopmaxx talks directly to your WHOOP strap over Bluetooth to read live heart
+          rate and sync its stored history. Nothing leaves your phone.
+        # WRITE-ONLY Apple Health export (W8). Only the update usage key is required — the app never
+        # READS Health, so NSHealthShareUsageDescription is deliberately omitted.
+        NSHealthUpdateUsageDescription: >-
+          whoopmaxx writes your strap-derived HRV, resting heart rate, respiratory rate and
+          sleep stages into Apple Health so they appear across your Health apps. Writing only;
+          nothing is read and nothing leaves your phone.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.whoopmaxx.app
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_PREVIEWS: YES
+        # App icon = the WHOOP monogram flipped 180° (App/Resources/Assets.xcassets/AppIcon.appiconset).
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        # HISTORY AUTHORITY (BuildPolicy.swift): the strap's history offload is a DESTRUCTIVE read —
+        # whoever acks a chunk first destroys that backlog for every other client. Only the Release
+        # build (the one the unsigned-IPA sideload flow produces, i.e. the install that actually
+        # collects data) is allowed to kick a backfill and ack. A Debug build launched alongside it
+        # would otherwise silently eat un-synced nights. Compile-time on purpose: a runtime toggle is
+        # what gets left in the wrong state.
+        Release:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) WM_HISTORY_AUTHORITY"
+    entitlements:
+      path: App/Resources/whoopmaxx.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - $(APP_GROUP_ID)
+        # WRITE-ONLY HealthKit (W8). The boolean healthkit key is all a write-only export needs; the
+        # clinical/characteristic-READ `com.apple.developer.healthkit.access` array is deliberately
+        # omitted. App target only — the widget extension has no Health lane.
+        com.apple.developer.healthkit: true
+    dependencies:
+      - package: StrapProtocol
+      - package: StrapStore
+      - package: StrapAnalytics
+      - package: ZIPFoundation
+      # Embed the widget/Live-Activity extension so it ships inside whoopmaxx.app/PlugIns/.
+      - target: whoopmaxxWidgets
+
+  # WidgetKit + Live-Activity extension. Reads the tiny WidgetSnapshot the app publishes into the
+  # shared App Group — it never opens SQLite. Live Activity lives here (not a separate target) so the
+  # whole wave stays at 2 app IDs under AltStore free provisioning.
+  whoopmaxxWidgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Widgets
+        excludes:
+          - "Info.plist"
+          - "whoopmaxxWidgets.entitlements"
+      # The same Contract/ + Design/ + Widget/ tree the app compiles (each target builds its own
+      # copy — separate binaries, no symbol clash; the exact pattern the original uses for StrandiOSShared).
+      - path: Shared
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: whoopmaxx
+        # Version keys MUST live here (generated-Info.plist properties), NOT hand-edited into the file —
+        # xcodegen rewrites Widgets/Info.plist on every generate. Inheriting the GLOBAL
+        # $(MARKETING_VERSION)/$(CURRENT_PROJECT_VERSION) keeps the extension lockstep with the app (#416).
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Mirrors the app: exposes APP_GROUP_ID to the extension at runtime (WidgetSnapshot.suiteName).
+        AppGroupIdentifier: "$(APP_GROUP_ID)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Widgets/whoopmaxxWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - $(APP_GROUP_ID)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.whoopmaxx.app.widgets
+        PRODUCT_NAME: whoopmaxxWidgets
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+    # No vendored-package deps: the extension compiles only Shared/ (SwiftUI/Foundation/ActivityKit)
+    # + Widgets/ (WidgetKit) — it never touches the store or protocol packages (snapshot-only).
+
+  whoopmaxxTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Tests
+    dependencies:
+      - target: whoopmaxx
+      # Test sources import the store + container libraries directly (fixture stores, unzip
+      # verification) — mirror of the original StrandTests dependency set.
+      - package: StrapProtocol
+      - package: StrapStore
+      - package: StrapAnalytics
+      - package: ZIPFoundation
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.whoopmaxx.tests
+
+schemes:
+  whoopmaxx:
+    build:
+      targets:
+        whoopmaxx: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - whoopmaxxTests
