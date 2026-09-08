@@ -1,0 +1,37 @@
+{
+  "name": "whoopmaxx",
+  "identifier": "com.whoopmaxx.source",
+  "subtitle": "Standalone WHOOP-strap companion for iPhone.",
+  "description": "Offline WHOOP-strap companion. No cloud, no account, no AI. Not affiliated with WHOOP.",
+  "iconURL": "https://raw.githubusercontent.com/m-a-x-w/whoopmaxx-public/main/App/Resources/Assets.xcassets/AppIcon.appiconset/icon_1024.png",
+  "website": "https://github.com/m-a-x-w/whoopmaxx-public",
+  "apps": [
+    {
+      "name": "whoopmaxx",
+      "bundleIdentifier": "com.whoopmaxx.app",
+      "developerName": "Max Weinstein",
+      "subtitle": "Your strap, your data, on your phone.",
+      "localizedDescription": "Reads your WHOOP strap over Bluetooth and keeps everything on the phone: Charge, Effort and Rest scores, sleep staging, heart rate and HRV history, workouts and a home-screen widget.\n\nNo cloud, no account, no subscription, no AI. Not affiliated with WHOOP.",
+      "iconURL": "https://raw.githubusercontent.com/m-a-x-w/whoopmaxx-public/main/App/Resources/Assets.xcassets/AppIcon.appiconset/icon_1024.png",
+      "screenshotURLs": [
+        "https://raw.githubusercontent.com/m-a-x-w/whoopmaxx-public/main/docs/screenshots/today.png",
+        "https://raw.githubusercontent.com/m-a-x-w/whoopmaxx-public/main/docs/screenshots/rest.png",
+        "https://raw.githubusercontent.com/m-a-x-w/whoopmaxx-public/main/docs/screenshots/data.png",
+        "https://raw.githubusercontent.com/m-a-x-w/whoopmaxx-public/main/docs/screenshots/charge.png"
+      ],
+      "versions": [
+        {
+          "version": "1.9.0",
+          "buildVersion": "47",
+          "date": "2026-09-08T23:10:53Z",
+          "localizedDescription": "Second strap battery alert: a critical tier at 5% on top of the 15% warning. Each fires once per discharge cycle; both reset when the strap charges.",
+          "downloadURL": "https://github.com/m-a-x-w/whoopmaxx-public/releases/download/v1.9.0-47/whoopmaxx-1.9.0-47.ipa",
+          "size": 6016836,
+          "sha256": "76f1d1979182eecac2ebbd7db837a0f61767941e4137518f7393460c20efe8d8",
+          "minOSVersion": "26.0"
+        }
+      ]
+    }
+  ],
+  "news": []
+}
